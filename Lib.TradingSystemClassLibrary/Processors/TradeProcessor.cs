@@ -53,8 +53,10 @@ namespace TradingSystem.Processors
                     order.Price = price;
                     ExecuteTrades(order.StockSymbol);
                 }
+
                 return true;
             }
+
             return false;
         }
 
@@ -70,12 +72,18 @@ namespace TradingSystem.Processors
                 }
                 return true;
             }
+
             return false;
         }
 
-        public async Task<Order?> QueryOrder(int orderId)
+        public async Task<Order> QueryOrder(int orderId)
         {
             Order? order = await _dataStore.OrderStore.GetOrder(orderId);
+            if (order == null)
+            {
+                throw new InvalidOperationException($"Order with ID {orderId} not found.");
+            }
+
             return order;
         }
 
