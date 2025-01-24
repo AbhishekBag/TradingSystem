@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <StartupServicesManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.microsoft.com/2011/01/fabric">
   <Parameters>
-    <Parameter Name="Svc.TradingSvcStateLessNETCore_InstanceCount" DefaultValue="-1" />
     <Parameter Name="Svc.TradingService_InstanceCount" DefaultValue="-1" />
   </Parameters>
   <Services>
@@ -10,11 +9,6 @@
          ServiceFabric PowerShell module.
 
          The attribute ServiceTypeName below must match the name defined in the imported ServiceManifest.xml file. -->
-    <Service Name="Svc.TradingSvcStateLessNETCore" ServicePackageActivationMode="ExclusiveProcess">
-      <StatelessService ServiceTypeName="Svc.TradingSvcStateLessNETCoreType" InstanceCount="[Svc.TradingSvcStateLessNETCore_InstanceCount]">
-        <SingletonPartition />
-      </StatelessService>
-    </Service>
     <Service Name="Svc.TradingService" ServicePackageActivationMode="ExclusiveProcess">
       <StatelessService ServiceTypeName="Svc.TradingServiceType" InstanceCount="[Svc.TradingService_InstanceCount]">
         <SingletonPartition />
