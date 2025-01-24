@@ -1,8 +1,9 @@
-﻿using TradingSystem.Models;
+﻿using TradingSystem.Interfaces;
+using TradingSystem.Models;
 
 namespace TradingSystem.Processors
 {
-    public class TradeProcessor
+    public class TradeProcessor : ITradeProcessor
     {
         private readonly InMemoryDataStore _dataStore;
         private int _orderIdCounter = 1;
@@ -14,7 +15,7 @@ namespace TradingSystem.Processors
             _dataStore = dataStore;
         }
 
-        public int PlaceOrder(int userId, OrderType orderType, string stockSymbol, int quantity, decimal price)
+        public async Task<int> PlaceOrder(int userId, OrderType orderType, string stockSymbol, int quantity, decimal price)
         {
             var order = new Order
             {
@@ -28,21 +29,23 @@ namespace TradingSystem.Processors
                 Status = OrderStatus.Accepted
             };
 
-            _dataStore.Orders[order.OrderId] = order;
+            await _dataStore.OrderStore.AddOrder(order.OrderId, order);
+
             if (!_dataStore.OrderBook.ContainsKey(stockSymbol))
             {
                 _dataStore.OrderBook[stockSymbol] = new List<Order>();
             }
             _dataStore.OrderBook[stockSymbol].Add(order);
 
-            ExecuteTrades(stockSymbol);
+            await ExecuteTrades(stockSymbol);
 
             return order.OrderId;
         }
 
-        public bool ModifyOrder(int orderId, int quantity, decimal price)
+        public async Task<bool> ModifyOrder(int orderId, int quantity, decimal price)
         {
-            if (_dataStore.Orders.TryGetValue(orderId, out var order))
+            Order? order = await _dataStore.OrderStore.GetOrder(orderId);
+            if (order != null)
             {
                 lock (_lock)
                 {
@@ -55,9 +58,10 @@ namespace TradingSystem.Processors
             return false;
         }
 
-        public bool CancelOrder(int orderId)
+        public async Task<bool> CancelOrder(int orderId)
         {
-            if (_dataStore.Orders.TryGetValue(orderId, out var order))
+            Order? order = await _dataStore.OrderStore.GetOrder(orderId);
+            if (order != null)
             {
                 lock (_lock)
                 {
@@ -69,13 +73,13 @@ namespace TradingSystem.Processors
             return false;
         }
 
-        public Order QueryOrder(int orderId)
+        public async Task<Order?> QueryOrder(int orderId)
         {
-            _dataStore.Orders.TryGetValue(orderId, out var order);
+            Order? order = await _dataStore.OrderStore.GetOrder(orderId);
             return order;
         }
 
-        private void ExecuteTrades(string stockSymbol)
+        private async Task ExecuteTrades(string stockSymbol)
         {
             var orders = _dataStore.OrderBook[stockSymbol];
             var buyOrders = orders.Where(o => o.OrderType == OrderType.Buy && o.Status == OrderStatus.Accepted).OrderBy(o => o.OrderAcceptedTimestamp).ToList();
@@ -102,7 +106,7 @@ namespace TradingSystem.Processors
                             TradeTimestamp = DateTime.UtcNow
                         };
 
-                        _dataStore.Trades[trade.TradeId] = trade;
+                        _dataStore.TradeStore.Trades[trade.TradeId] = trade;
 
                         buyOrder.Quantity -= tradeQuantity;
                         sellOrder.Quantity -= tradeQuantity;

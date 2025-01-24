@@ -1,18 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Fabric;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Security.Cryptography.X509Certificates;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ServiceFabric.Services.Communication.AspNetCore;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
-using Microsoft.ServiceFabric.Data;
+using System.Fabric;
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
+using TradingSystem.Processors;
 
 namespace Svc.TradingService
 {
@@ -56,6 +48,7 @@ namespace Svc.TradingService
                         builder.Services.AddControllers();
                         builder.Services.AddEndpointsApiExplorer();
                         builder.Services.AddSwaggerGen();
+                        builder.Services.AddSingleton<TradeActions>();
                         var app = builder.Build();
                         if (app.Environment.IsDevelopment())
                         {

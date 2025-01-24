@@ -1,15 +1,16 @@
 ﻿using System.Collections.Concurrent;
+using TradingSystem.DataAccess;
 
 namespace TradingSystem.Models
 {
     public class InMemoryDataStore
     {
-        public ConcurrentDictionary<int, User> Users { get; } = new ConcurrentDictionary<int, User>();
-        
-        public ConcurrentDictionary<int, Order> Orders { get; } = new ConcurrentDictionary<int, Order>();
-        
-        public ConcurrentDictionary<int, Trade> Trades { get; } = new ConcurrentDictionary<int, Trade>();
-        
+        public UserStore UserStore { get; set; } = UserStore.Instance;
+
+        public OrderStore OrderStore { get; set; } = OrderStore.Instance;
+
+        public TradeStore TradeStore { get; set; } = TradeStore.Instance;
+
         public ConcurrentDictionary<string, List<Order>> OrderBook { get; } = new ConcurrentDictionary<string, List<Order>>();
     }
 }
