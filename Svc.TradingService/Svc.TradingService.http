@@ -1,0 +1,6 @@
+@Svc.TradingService_HostAddress = http://localhost:5047
+
+GET {{Svc.TradingService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
