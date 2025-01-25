@@ -11,65 +11,51 @@ namespace TradingSystem.DataAccess
 
         private readonly ConcurrentDictionary<int, Order> Orders = new ConcurrentDictionary<int, Order>();
 
-        // StockSymbol -> OrderType -> PriorityQueue<Order>
-        private readonly ConcurrentDictionary<string, Dictionary<OrderType, PriorityQueue<Order, int>>> OrderCollection = new ConcurrentDictionary<string, Dictionary<OrderType, PriorityQueue<Order, int>>>();
+        // Key: Stock Symbol, Value: Dictionary of OrderType and PriorityQueue of Orders
+        private readonly ConcurrentDictionary<string, Dictionary<OrderType, PriorityQueue<Order, long>>> OrderCollections = new ConcurrentDictionary<string, Dictionary<OrderType, PriorityQueue<Order, long>>>();
 
-        private OrderStore()
-        {
-        }
-
-        public async Task<bool> AddOrderCollection(string stockSymbol, Dictionary<OrderType, PriorityQueue<Order, int>> orderCollection)
-        {
-            return await Task.Run(() =>
-            {
-                return OrderCollection.TryAdd(stockSymbol, orderCollection);
-            });
-        }
-
-        public async Task<bool> AddOrder(int orderId, Order order)
-        {
-            bool addedToOrders = Orders.TryAdd(orderId, order);
-
-            var orderQueues = OrderCollection.GetOrAdd(order.StockSymbol, CreateOrderQueues());
-
-            lock (orderQueues)
-            {
-                orderQueues[order.OrderType].Enqueue(order, order.Price);
-            }
-
-            return await Task.FromResult(addedToOrders);
-        }
-
-        public async Task<IEnumerable<string>> GetOrderCollectionKeys()
-        {
-            return await Task.FromResult(OrderCollection.Keys);
-        }
-
-        public async Task<Order?> GetOrder(int orderId)
+        public Task<Order?> GetOrder(int orderId)
         {
             Orders.TryGetValue(orderId, out var order);
-            return await Task.FromResult(order);
+            return Task.FromResult(order);
         }
 
-        public async Task<List<Order>?> GetOrders()
+        public Task<List<Order>> GetOrders()
         {
-            var orders = Orders.Values.ToList();
-            return await Task.FromResult(orders);
+            return Task.FromResult(Orders.Values.ToList());
         }
 
-        public async Task<Dictionary<OrderType, PriorityQueue<Order, int>>?> GetOrderCollectionBySymbol(string symbol)
+        public Task AddOrder(int orderId, Order order)
         {
-            OrderCollection.TryGetValue(symbol, out var orderDict);
-            return await Task.FromResult(orderDict);
+            Orders[orderId] = order;
+            return Task.CompletedTask;
         }
 
-        private Dictionary<OrderType, PriorityQueue<Order, int>> CreateOrderQueues()
+        public Task<bool> RemoveOrder(int orderId)
         {
-            return new Dictionary<OrderType, PriorityQueue<Order, int>>
-            {
-                [OrderType.Buy] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) => o2.CompareTo(o1))),
-                [OrderType.Sell] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) => o1.CompareTo(o2)))
-            };
+            return Task.FromResult(Orders.TryRemove(orderId, out _));
+        }
+
+        public Task<Dictionary<OrderType, PriorityQueue<Order, long>>?> GetOrderCollectionBySymbol(string stockSymbol)
+        {
+            OrderCollections.TryGetValue(stockSymbol, out var orderCollection);
+            return Task.FromResult(orderCollection);
+        }
+
+        public Task<List<string>> GetOrderCollectionKeys()
+        {
+            return Task.FromResult(OrderCollections.Keys.ToList());
+        }
+
+        public Task AddOrderCollection(string stockSymbol, Dictionary<OrderType, PriorityQueue<Order, long>> orderCollection)
+        {
+            OrderCollections[stockSymbol] = orderCollection;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveOrderCollection(string stockSymbol)
+        {
+            return Task.FromResult(OrderCollections.TryRemove(stockSymbol, out _));
         }
     }
 }

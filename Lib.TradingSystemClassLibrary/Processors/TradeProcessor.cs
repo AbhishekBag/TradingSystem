@@ -29,7 +29,7 @@ namespace TradingSystem.Processors
         public async Task<int> PlaceOrder(int userId, OrderType orderType, string stockSymbol, int quantity, int price)
         {
             // Determine order expiry time
-            var expiryDuration = TimeSpan.FromMinutes(config.OrderExpiryMinutes); // Configurable
+            var expiryDuration = TimeSpan.FromMinutes(config.OrderExpiryMinutes);
             var expiryTimestamp = DateTime.UtcNow.Add(expiryDuration);
 
             // Create a new order
@@ -41,7 +41,7 @@ namespace TradingSystem.Processors
             var orderQueues = await dataStore.OrderStore.GetOrderCollectionBySymbol(stockSymbol);
             lock (orderQueues)
             {
-                orderQueues[order.OrderType].Enqueue(order, order.Price);
+                orderQueues[order.OrderType].Enqueue(order, order.OrderAcceptedTimestamp.Ticks); // Oldest orders first
             }
 
             Console.WriteLine($"New order created with id: {order.OrderId}, status: {order.Status}, orderType: {order.OrderType}, symbol: {order.StockSymbol}, price: {order.Price}, quantity: {order.Quantity}, expiration time: {order.ExpiryTimestamp}.");
@@ -68,7 +68,7 @@ namespace TradingSystem.Processors
                         // Remove the old order from the queue
                         if (orderQueues.TryGetValue(order.OrderType, out var queue))
                         {
-                            var updatedQueue = new PriorityQueue<Order, int>(Comparer<int>.Default);
+                            var updatedQueue = new PriorityQueue<Order, long>();
                             while (queue.TryDequeue(out var item, out var priority))
                             {
                                 if (item.OrderId != order.OrderId)
@@ -86,7 +86,8 @@ namespace TradingSystem.Processors
                         // Re-add the updated order to the queue
                         if (order.Status != OrderStatus.Canceled)
                         {
-                            orderQueues[order.OrderType].Enqueue(order, order.Price);
+                            order.LastModifiedTime = DateTime.UtcNow;
+                            orderQueues[order.OrderType].Enqueue(order, order.LastModifiedTime.Ticks);
                         }
                     }
 
@@ -117,7 +118,7 @@ namespace TradingSystem.Processors
                         // Remove the order from the appropriate queue
                         if (orderQueues.TryGetValue(order.OrderType, out var queue))
                         {
-                            var updatedQueue = new PriorityQueue<Order, int>(Comparer<int>.Default);
+                            var updatedQueue = new PriorityQueue<Order, long>();
                             while (queue.TryDequeue(out var item, out var priority))
                             {
                                 if (item.OrderId != order.OrderId)
@@ -182,8 +183,8 @@ namespace TradingSystem.Processors
             var sellQueue = orderCollection[OrderType.Sell];
 
             // Continue matching until there are no eligible orders
-            while (buyQueue.TryPeek(out var buyOrder, out int buyPriority) &&
-                   sellQueue.TryPeek(out var sellOrder, out int sellPriority))
+            while (buyQueue.TryPeek(out var buyOrder, out long buyPriority) &&
+                   sellQueue.TryPeek(out var sellOrder, out long sellPriority))
             {
                 // Skip expired orders
                 if (buyOrder.ExpiryTimestamp <= DateTime.UtcNow || sellOrder.ExpiryTimestamp <= DateTime.UtcNow)
@@ -247,7 +248,7 @@ namespace TradingSystem.Processors
                         foreach (var orderType in orderCollection.Keys)
                         {
                             var queue = orderCollection[orderType];
-                            var updatedQueue = new PriorityQueue<Order, int>(Comparer<int>.Default);
+                            var updatedQueue = new PriorityQueue<Order, long>();
 
                             while (queue.TryDequeue(out var order, out var priority))
                             {
@@ -283,12 +284,10 @@ namespace TradingSystem.Processors
             var orderCollection = await dataStore.OrderStore.GetOrderCollectionBySymbol(stockSymbol);
             if (orderCollection == null)
             {
-                orderCollection = new Dictionary<OrderType, PriorityQueue<Order, int>>
+                orderCollection = new Dictionary<OrderType, PriorityQueue<Order, long>>
                 {
-                    [OrderType.Buy] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) =>
-                        o2.CompareTo(o1) != 0 ? o2.CompareTo(o1) : o1)),
-                    [OrderType.Sell] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) =>
-                        o1.CompareTo(o2) != 0 ? o1.CompareTo(o2) : o1))
+                    [OrderType.Buy] = new PriorityQueue<Order, long>(),
+                    [OrderType.Sell] = new PriorityQueue<Order, long>()
                 };
 
                 await dataStore.OrderStore.AddOrderCollection(stockSymbol, orderCollection);
@@ -299,46 +298,42 @@ namespace TradingSystem.Processors
         {
             // Determine trade quantity and price
             var tradeQuantity = Math.Min(buyOrder.Quantity, sellOrder.Quantity);
-            var tradePrice = sellOrder.Price;            
+            var tradePrice = sellOrder.Price;
 
-            // Update order quantities
-            if (buyOrder.Price >= sellOrder.Price)
+            lock (_lock)
             {
-                lock (_lock)
+                if (buyOrder.Price >= sellOrder.Price && buyOrder.Status == OrderStatus.Accepted && sellOrder.Status == OrderStatus.Accepted)
                 {
-                    if (buyOrder.Price >= sellOrder.Price && buyOrder.Status == OrderStatus.Accepted && sellOrder.Status == OrderStatus.Accepted)
+                    // Create a new trade record
+                    var trade = new Trade
                     {
-                        // Create a new trade record
-                        var trade = new Trade
-                        {
-                            TradeId = Interlocked.Increment(ref tradeIdCounter),
-                            TradeType = OrderType.Buy,
-                            BuyerOrderId = buyOrder.OrderId,
-                            SellerOrderId = sellOrder.OrderId,
-                            StockSymbol = stockSymbol,
-                            Quantity = tradeQuantity,
-                            Price = tradePrice,
-                            TradeTimestamp = DateTime.UtcNow
-                        };
+                        TradeId = Interlocked.Increment(ref tradeIdCounter),
+                        TradeType = OrderType.Buy,
+                        BuyerOrderId = buyOrder.OrderId,
+                        SellerOrderId = sellOrder.OrderId,
+                        StockSymbol = stockSymbol,
+                        Quantity = tradeQuantity,
+                        Price = tradePrice,
+                        TradeTimestamp = DateTime.UtcNow
+                    };
 
-                        dataStore.TradeStore.Trades[trade.TradeId] = trade;
+                    dataStore.TradeStore.Trades[trade.TradeId] = trade;
 
-                        buyOrder.Quantity -= tradeQuantity;
-                        sellOrder.Quantity -= tradeQuantity;
+                    buyOrder.Quantity -= tradeQuantity;
+                    sellOrder.Quantity -= tradeQuantity;
 
-                        // Update order status if fully matched
-                        if (buyOrder.Quantity == 0)
-                        {
-                            buyOrder.Status = OrderStatus.Completed;
-                        }
-
-                        if (sellOrder.Quantity == 0)
-                        {
-                            sellOrder.Status = OrderStatus.Completed;
-                        }
-
-                        Console.WriteLine($"Trade executed: id: {trade.TradeId}, BuyerOrderId: {trade.BuyerOrderId}, SellerOrderId: {trade.SellerOrderId}, StockSymbol: {trade.StockSymbol}, Quantity: {trade.Quantity}, Price: {trade.Price}, time: {trade.TradeTimestamp}");
+                    // Update order status if fully matched
+                    if (buyOrder.Quantity == 0)
+                    {
+                        buyOrder.Status = OrderStatus.Completed;
                     }
+
+                    if (sellOrder.Quantity == 0)
+                    {
+                        sellOrder.Status = OrderStatus.Completed;
+                    }
+
+                    Console.WriteLine($"Trade executed: id: {trade.TradeId}, BuyerOrderId: {trade.BuyerOrderId}, SellerOrderId: {trade.SellerOrderId}, StockSymbol: {trade.StockSymbol}, Quantity: {trade.Quantity}, Price: {trade.Price}, time: {trade.TradeTimestamp}");
                 }
             }
         }
@@ -352,7 +347,6 @@ namespace TradingSystem.Processors
             }
             catch (Exception ex)
             {
-                // Log the exception
                 Console.WriteLine($"Error: {ex.Message}");
             }
             finally

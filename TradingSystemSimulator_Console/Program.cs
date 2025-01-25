@@ -16,7 +16,7 @@ var orderId1 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.
 var orderId2 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.Users[2].UserId, OrderType.Buy, "RIL", 150, 2100));
 var orderId3 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.Users[2].UserId, OrderType.Sell, "HAL", 100, 2100));
 var orderId4 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.Users[2].UserId, OrderType.Buy, "HAL", 150, 2100));
-var orderId5 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.Users[2].UserId, OrderType.Sell, "RIL", 100, 1500));
+var orderId5 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.Users[2].UserId, OrderType.Sell, "RIL", 150, 1500));
 var orderId6 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.Users[2].UserId, OrderType.Sell, "RIL", 100, 2500));
 var orderId7 = await tradeActions.PlaceOrderAsync(new Order(dataStore.UserStore.Users[2].UserId, OrderType.Sell, "RIL", 100, 3000));
 

@@ -16,6 +16,8 @@
 
         public DateTime OrderAcceptedTimestamp { get; set; }
 
+        public DateTime LastModifiedTime { get; set; }
+
         public DateTime ExpiryTimestamp { get; set; }
 
         public OrderStatus Status { get; set; }
@@ -29,6 +31,7 @@
             Quantity = quantity;
             Price = price;
             OrderAcceptedTimestamp = orderAcceptedTimestamp;
+            LastModifiedTime = orderAcceptedTimestamp;
             ExpiryTimestamp = expiryTimestamp;
             Status = status;
         }
