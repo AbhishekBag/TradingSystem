@@ -12,9 +12,11 @@
         
         public int Quantity { get; set; }
         
-        public decimal Price { get; set; }
+        public int Price { get; set; }
         
         public DateTime OrderAcceptedTimestamp { get; set; }
+
+        public DateTime ExpiryTimestamp { get; set; }
 
         public OrderStatus Status { get; set; }
     }

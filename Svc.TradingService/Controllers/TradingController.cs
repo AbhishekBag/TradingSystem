@@ -49,7 +49,7 @@ namespace Svc.TradingService.Controllers
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
         [HttpPatch("ModifyOrder")]
-        public async Task<ActionResult<bool>> Patch(int orderId, int quantity, decimal price)
+        public async Task<ActionResult<bool>> Patch(int orderId, int quantity, int price)
         {
             if (orderId < 0 || quantity < 0 || price < 0)
             {

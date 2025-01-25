@@ -5,6 +5,7 @@ using System.Fabric;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using TradingSystem.Processors;
+using TradingSystem.TradingSystemConfig;
 
 namespace Svc.TradingService
 {
@@ -49,6 +50,7 @@ namespace Svc.TradingService
                         builder.Services.AddEndpointsApiExplorer();
                         builder.Services.AddSwaggerGen();
                         builder.Services.AddSingleton<TradeActions>();
+                        builder.Services.AddSingleton<Config>();
                         var app = builder.Build();
                         if (app.Environment.IsDevelopment())
                         {

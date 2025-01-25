@@ -8,6 +8,7 @@ namespace TradingSystem.Models
         Accepted,
         Rejected,
         Canceled,
-        Completed
+        Completed,
+        Expired
     }
 }

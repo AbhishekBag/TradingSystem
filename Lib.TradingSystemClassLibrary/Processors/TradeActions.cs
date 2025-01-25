@@ -1,5 +1,6 @@
 ﻿using TradingSystem.Interfaces;
 using TradingSystem.Models;
+using TradingSystem.TradingSystemConfig;
 
 namespace TradingSystem.Processors
 {
@@ -8,10 +9,10 @@ namespace TradingSystem.Processors
         private readonly InMemoryDataStore inMemoryDataStore;
         private readonly ITradeProcessor tradeProcessor;
 
-        public TradeActions()
+        public TradeActions(Config config)
         {
             inMemoryDataStore = new InMemoryDataStore();
-            tradeProcessor = new TradeProcessor(inMemoryDataStore);
+            tradeProcessor = new TradeProcessor(inMemoryDataStore, config);
         }
 
         public async Task<int> PlaceOrderAsync(Order order)
@@ -19,7 +20,7 @@ namespace TradingSystem.Processors
             return await tradeProcessor.PlaceOrder(order.UserId, order.OrderType, order.StockSymbol, order.Quantity, order.Price);
         }
 
-        public async Task<bool> ModifyOrderAsync(int orderId, int quantity, decimal price)
+        public async Task<bool> ModifyOrderAsync(int orderId, int quantity, int price)
         {
             return await tradeProcessor.ModifyOrder(orderId, quantity, price);
         }

@@ -9,54 +9,61 @@ namespace TradingSystem.DataAccess
 
         public static OrderStore Instance => lazyInstance.Value;
 
-        private ConcurrentDictionary<int, Order> Orders { get; } = new ConcurrentDictionary<int, Order>();
+        private readonly ConcurrentDictionary<int, Order> Orders = new ConcurrentDictionary<int, Order>();
 
-        // StockSymbol -> OrderType -> List of OrderIds
-        private ConcurrentDictionary<string, Dictionary<OrderType, List<int>>> OrderCollection { get; } = new ConcurrentDictionary<string, Dictionary<OrderType, List<int>>>();
+        // StockSymbol -> OrderType -> PriorityQueue<Order>
+        private readonly ConcurrentDictionary<string, Dictionary<OrderType, PriorityQueue<Order, int>>> OrderCollection = new ConcurrentDictionary<string, Dictionary<OrderType, PriorityQueue<Order, int>>>();
 
         private OrderStore()
         {
         }
 
+        public async Task<bool> AddOrderCollection(string stockSymbol, Dictionary<OrderType, PriorityQueue<Order, int>> orderCollection)
+        {
+            return await Task.Run(() =>
+            {
+                return OrderCollection.TryAdd(stockSymbol, orderCollection);
+            });
+        }
+
         public async Task<bool> AddOrder(int orderId, Order order)
         {
-            // Add to Orders dictionary
-            var addedToOrders = Orders.TryAdd(orderId, order);
+            bool addedToOrders = Orders.TryAdd(orderId, order);
 
-            // Add to OrderCollection dictionary
-            var orderDict = OrderCollection.GetOrAdd(order.StockSymbol, new Dictionary<OrderType, List<int>>());
-            lock (orderDict)
+            var orderQueues = OrderCollection.GetOrAdd(order.StockSymbol, CreateOrderQueues());
+
+            lock (orderQueues)
             {
-                if (!orderDict.TryGetValue(order.OrderType, out var orderList))
-                {
-                    orderList = new List<int>();
-                    orderDict[order.OrderType] = orderList;
-                }
-
-                orderList.Add(orderId);
+                orderQueues[order.OrderType].Enqueue(order, order.Price);
             }
 
             return await Task.FromResult(addedToOrders);
         }
 
-        public async Task<Order?> GetOrder(int orderId)
+        public async Task<IEnumerable<string>> GetOrderCollectionKeys()
         {
-            if (Orders != null)
-            {
-                return await Task.FromResult(Orders.TryGetValue(orderId, out var order) ? order : null);
-            }
-
-            return await Task.FromResult<Order?>(null);
+            return await Task.FromResult(OrderCollection.Keys);
         }
 
-        public async Task<Dictionary<OrderType, List<int>>?> GetOrderCollectionBySymbol(string symbol)
+        public async Task<Order?> GetOrder(int orderId)
         {
-            if (OrderCollection.TryGetValue(symbol, out var orderDict))
-            {
-                return await Task.FromResult(orderDict);
-            }
+            Orders.TryGetValue(orderId, out var order);
+            return await Task.FromResult(order);
+        }
 
-            return await Task.FromResult<Dictionary<OrderType, List<int>>?>(null);
+        public async Task<Dictionary<OrderType, PriorityQueue<Order, int>>?> GetOrderCollectionBySymbol(string symbol)
+        {
+            OrderCollection.TryGetValue(symbol, out var orderDict);
+            return await Task.FromResult(orderDict);
+        }
+
+        private Dictionary<OrderType, PriorityQueue<Order, int>> CreateOrderQueues()
+        {
+            return new Dictionary<OrderType, PriorityQueue<Order, int>>
+            {
+                [OrderType.Buy] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) => o2.CompareTo(o1))),
+                [OrderType.Sell] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) => o1.CompareTo(o2)))
+            };
         }
     }
 }
