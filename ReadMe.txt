@@ -19,7 +19,7 @@ This project consists of two main components:
    - Set up a local cluster for a 1-node or 5-node configuration.
 
 3. **Deploy the Application:**
-   - Open the `TradingSystem` solution in Visual Studio.
+   - Open the `TradingSystem` solution in Visual Studio (open in Admin mode).
    - Right-click on the `TradingSystem` project in the Solution Explorer and set it as the startup project.
    - Run the application.
 

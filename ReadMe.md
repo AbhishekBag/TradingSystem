@@ -20,7 +20,7 @@ Follow these steps to set up and deploy the Service Fabric cluster:
 - Set up a local cluster for a **1-node** or **5-node** configuration.
 
 #### 3. Deploy the Application
-- Open the `TradingSystem` solution in Visual Studio.
+- Open the `TradingSystem` solution in Visual Studio (open in Admin mode).
 - Right-click on the **TradingSystem** project in the Solution Explorer and set it as the **Startup Project**.
 - Run the application.
 

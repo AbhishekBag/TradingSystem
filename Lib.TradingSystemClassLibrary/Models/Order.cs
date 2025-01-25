@@ -22,6 +22,10 @@
 
         public OrderStatus Status { get; set; }
 
+        public Order()
+        {
+        }
+
         public Order(int orderId, int userId, OrderType orderType, string stockSymbol, int quantity, int price, DateTime orderAcceptedTimestamp, DateTime expiryTimestamp, OrderStatus status)
         {
             OrderId = orderId;
