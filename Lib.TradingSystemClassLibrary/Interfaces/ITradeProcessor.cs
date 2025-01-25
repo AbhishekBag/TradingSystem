@@ -11,5 +11,9 @@ namespace TradingSystem.Interfaces
         public Task<bool> CancelOrder(int orderId);
 
         public Task<Order> QueryOrder(int orderId);
+
+        public Task<List<Order>> GetActiveOrders();
+
+        public Task<List<Order>> GetAllOrders();
     }
 }

@@ -34,5 +34,15 @@ namespace TradingSystem.Processors
         {
             return await tradeProcessor.QueryOrder(orderId);
         }
+
+        public async Task<List<Order>> GetActiveOrders()
+        {
+            return await tradeProcessor.GetActiveOrders();
+        }
+
+        public async Task<List<Order>> GetAllOrders()
+        {
+            return await tradeProcessor.GetAllOrders();
+        }
     }
 }

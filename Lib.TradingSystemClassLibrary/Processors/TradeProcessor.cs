@@ -33,22 +33,10 @@ namespace TradingSystem.Processors
             var expiryTimestamp = DateTime.UtcNow.Add(expiryDuration);
 
             // Create a new order
-            var order = new Order
-            {
-                OrderId = Interlocked.Increment(ref orderIdCounter),
-                UserId = userId,
-                OrderType = orderType,
-                StockSymbol = stockSymbol,
-                Quantity = quantity,
-                Price = price,
-                OrderAcceptedTimestamp = DateTime.UtcNow,
-                ExpiryTimestamp = expiryTimestamp, // Set expiry timestamp
-                Status = (quantity == 0 || price == 0) ? OrderStatus.Canceled : OrderStatus.Accepted
-            };
+            var order = new Order(Interlocked.Increment(ref orderIdCounter), userId, orderType, stockSymbol, quantity, price, DateTime.UtcNow, expiryTimestamp, (quantity == 0 || price == 0) ? OrderStatus.Canceled : OrderStatus.Accepted);
 
             // Add the order to the OrderStore
-            await dataStore.OrderStore.AddOrder(order.OrderId, order);
-            await UpdateOrderCollection(stockSymbol);
+            await UpdateOrderCollection(stockSymbol, order);
 
             var orderQueues = await dataStore.OrderStore.GetOrderCollectionBySymbol(stockSymbol);
             lock (orderQueues)
@@ -56,13 +44,13 @@ namespace TradingSystem.Processors
                 orderQueues[order.OrderType].Enqueue(order, order.Price);
             }
 
+            Console.WriteLine($"New order created with id: {order.OrderId}, status: {order.Status}, orderType: {order.OrderType}, symbol: {order.StockSymbol}, price: {order.Price}, quantity: {order.Quantity}, expiration time: {order.ExpiryTimestamp}.");
+
             // Process the order if it is accepted
             if (order.Status == OrderStatus.Accepted)
             {
                 await RunInThreadPool(() => ExecuteTrades(order));
             }
-
-            Console.Write($"New order created with id: {order.OrderId}, status: {order.Status}, price: {order.Price}, quantity: {order.Quantity}, expiration time: {order.ExpiryTimestamp}.");
 
             return order.OrderId;
         }
@@ -102,7 +90,7 @@ namespace TradingSystem.Processors
                         }
                     }
 
-                    Console.Write($"Order modified successfully: {order.OrderId}, status: {order.Status}, price: {order.Price}, quantity: {order.Quantity}, expiration time: {order.ExpiryTimestamp}.");
+                    Console.WriteLine($"Order modified successfully: {order.OrderId}, status: {order.Status}, price: {order.Price}, quantity: {order.Quantity}, expiration time: {order.ExpiryTimestamp}.");
 
                     // Process the updated order
                     await RunInThreadPool(() => ExecuteTrades(order));
@@ -111,7 +99,7 @@ namespace TradingSystem.Processors
                 }
             }
 
-            Console.Write($"Failed to modify order with id: {orderId}");
+            Console.WriteLine($"Failed to modify order with id: {orderId}");
 
             return false;
         }
@@ -141,19 +129,16 @@ namespace TradingSystem.Processors
                         }
                     }
 
-                    // Update order status and clean up the OrderBook
-                    lock (_lock)
-                    {
-                        order.Status = OrderStatus.Canceled;
-                        dataStore.OrderBook[order.StockSymbol].Remove(order);
-                    }
+                    // Update the order status to Canceled
+                    order.Status = OrderStatus.Canceled;
+                    await dataStore.OrderStore.AddOrder(order.OrderId, order);
 
-                    Console.Write($"Canceled order with id: {orderId}");
+                    Console.WriteLine($"Canceled order with id: {orderId}");
                     return true;
                 }
             }
 
-            Console.Write($"Failed to cancel order with id: {orderId}");
+            Console.WriteLine($"Failed to cancel order with id: {orderId}");
             return false;
         }
 
@@ -166,6 +151,21 @@ namespace TradingSystem.Processors
             }
 
             return order;
+        }
+
+        public async Task<List<Order>> GetActiveOrders()
+        {
+            var orders = await GetAllOrders();
+
+            var activeOrders = orders.Where(order => order.Status == OrderStatus.Accepted).ToList();
+
+            return activeOrders;
+        }
+
+        public async Task<List<Order>> GetAllOrders()
+        {
+            var orders = await dataStore.OrderStore.GetOrders();
+            return orders ?? new List<Order>();
         }
 
         private async Task ExecuteTrades(Order order)
@@ -192,18 +192,16 @@ namespace TradingSystem.Processors
                     {
                         buyQueue.Dequeue();
                         buyOrder.Status = OrderStatus.Expired;
-                        dataStore.OrderBook[buyOrder.StockSymbol].Remove(buyOrder);
 
-                        Console.Write($"Order expired: id: {buyOrder.OrderId}");
+                        Console.WriteLine($"Order expired: id: {buyOrder.OrderId}");
                     }
 
                     if (sellOrder.ExpiryTimestamp <= DateTime.UtcNow)
                     {
                         sellQueue.Dequeue();
                         sellOrder.Status = OrderStatus.Expired;
-                        dataStore.OrderBook[sellOrder.StockSymbol].Remove(sellOrder);
 
-                        Console.Write($"Order expired: id: {sellOrder.OrderId}");
+                        Console.WriteLine($"Order expired: id: {sellOrder.OrderId}");
                     }
 
                     continue;
@@ -261,9 +259,8 @@ namespace TradingSystem.Processors
                                 {
                                     // Expire the order
                                     order.Status = OrderStatus.Expired;
-                                    dataStore.OrderBook[order.StockSymbol].Remove(order);
 
-                                    Console.Write($"Order expired: id: {order.OrderId}");
+                                    Console.WriteLine($"Order expired: id: {order.OrderId}");
                                 }
                             }
 
@@ -277,8 +274,11 @@ namespace TradingSystem.Processors
             }
         }
 
-        private async Task UpdateOrderCollection(string stockSymbol)
+        private async Task UpdateOrderCollection(string stockSymbol, Order order)
         {
+            // Update order book
+            await dataStore.OrderStore.AddOrder(order.OrderId, order);
+
             // Add the order to the appropriate priority queue
             var orderCollection = await dataStore.OrderStore.GetOrderCollectionBySymbol(stockSymbol);
             if (orderCollection == null)
@@ -295,47 +295,52 @@ namespace TradingSystem.Processors
             }
         }
 
-
         private void ProcessTrade(Order buyOrder, Order sellOrder, string stockSymbol)
         {
             // Determine trade quantity and price
             var tradeQuantity = Math.Min(buyOrder.Quantity, sellOrder.Quantity);
-            var tradePrice = sellOrder.Price;
-
-            // Create a new trade record
-            var trade = new Trade
-            {
-                TradeId = Interlocked.Increment(ref tradeIdCounter),
-                TradeType = OrderType.Buy,
-                BuyerOrderId = buyOrder.OrderId,
-                SellerOrderId = sellOrder.OrderId,
-                StockSymbol = stockSymbol,
-                Quantity = tradeQuantity,
-                Price = tradePrice,
-                TradeTimestamp = DateTime.UtcNow
-            };
+            var tradePrice = sellOrder.Price;            
 
             // Update order quantities
-            lock (_lock)
+            if (buyOrder.Price >= sellOrder.Price)
             {
-                dataStore.TradeStore.Trades[trade.TradeId] = trade;
-
-                buyOrder.Quantity -= tradeQuantity;
-                sellOrder.Quantity -= tradeQuantity;
-
-                // Update order status if fully matched
-                if (buyOrder.Quantity == 0)
+                lock (_lock)
                 {
-                    buyOrder.Status = OrderStatus.Completed;
-                }
+                    if (buyOrder.Price >= sellOrder.Price && buyOrder.Status == OrderStatus.Accepted && sellOrder.Status == OrderStatus.Accepted)
+                    {
+                        // Create a new trade record
+                        var trade = new Trade
+                        {
+                            TradeId = Interlocked.Increment(ref tradeIdCounter),
+                            TradeType = OrderType.Buy,
+                            BuyerOrderId = buyOrder.OrderId,
+                            SellerOrderId = sellOrder.OrderId,
+                            StockSymbol = stockSymbol,
+                            Quantity = tradeQuantity,
+                            Price = tradePrice,
+                            TradeTimestamp = DateTime.UtcNow
+                        };
 
-                if (sellOrder.Quantity == 0)
-                {
-                    sellOrder.Status = OrderStatus.Completed;
+                        dataStore.TradeStore.Trades[trade.TradeId] = trade;
+
+                        buyOrder.Quantity -= tradeQuantity;
+                        sellOrder.Quantity -= tradeQuantity;
+
+                        // Update order status if fully matched
+                        if (buyOrder.Quantity == 0)
+                        {
+                            buyOrder.Status = OrderStatus.Completed;
+                        }
+
+                        if (sellOrder.Quantity == 0)
+                        {
+                            sellOrder.Status = OrderStatus.Completed;
+                        }
+
+                        Console.WriteLine($"Trade executed: id: {trade.TradeId}, BuyerOrderId: {trade.BuyerOrderId}, SellerOrderId: {trade.SellerOrderId}, StockSymbol: {trade.StockSymbol}, Quantity: {trade.Quantity}, Price: {trade.Price}, time: {trade.TradeTimestamp}");
+                    }
                 }
             }
-
-            Console.Write($"Trade executed: id: {trade.TradeId}, BuyerOrderId: {trade.BuyerOrderId}, SellerOrderId: {trade.SellerOrderId}, StockSymbol: {trade.StockSymbol}, Quantity: {trade.Quantity}, Price: {trade.Price}, time: {trade.TradeTimestamp}");
         }
 
         private async Task RunInThreadPool(Func<Task> action)

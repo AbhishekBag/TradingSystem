@@ -11,6 +11,6 @@ namespace TradingSystem.Models
 
         public TradeStore TradeStore { get; set; } = TradeStore.Instance;
 
-        public ConcurrentDictionary<string, List<Order>> OrderBook { get; } = new ConcurrentDictionary<string, List<Order>>();
+        // public ConcurrentDictionary<string, List<Order>> OrderBook { get; } = new ConcurrentDictionary<string, List<Order>>();
     }
 }

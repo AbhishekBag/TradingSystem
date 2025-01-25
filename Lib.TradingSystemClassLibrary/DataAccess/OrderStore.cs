@@ -51,6 +51,12 @@ namespace TradingSystem.DataAccess
             return await Task.FromResult(order);
         }
 
+        public async Task<List<Order>?> GetOrders()
+        {
+            var orders = Orders.Values.ToList();
+            return await Task.FromResult(orders);
+        }
+
         public async Task<Dictionary<OrderType, PriorityQueue<Order, int>>?> GetOrderCollectionBySymbol(string symbol)
         {
             OrderCollection.TryGetValue(symbol, out var orderDict);

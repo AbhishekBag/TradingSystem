@@ -87,5 +87,23 @@ namespace Svc.TradingService.Controllers
             var order = await _tradeActions.QueryOrderAsync(orderId);
             return Ok(order);
         }
+
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
+        [HttpGet("GetActiveOrders")]
+        public async Task<ActionResult<List<Order>>> GetActieOrders()
+        {
+            var orders = await _tradeActions.GetActiveOrders();
+            return Ok(orders);
+        }
+
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
+        [HttpGet("GetAllOrders")]
+        public async Task<ActionResult<List<Order>>> GetAllOrders()
+        {
+            var orders = await _tradeActions.GetAllOrders();
+            return Ok(orders);
+        }
     }
 }
