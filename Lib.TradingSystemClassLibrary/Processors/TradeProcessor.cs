@@ -62,25 +62,9 @@ namespace TradingSystem.Processors
                 await RunInThreadPool(() => ExecuteTrades(order));
             }
 
+            Console.Write($"New order created with id: {order.OrderId}, status: {order.Status}, price: {order.Price}, quantity: {order.Quantity}, expiration time: {order.ExpiryTimestamp}.");
+
             return order.OrderId;
-        }
-
-        private async Task UpdateOrderCollection(string stockSymbol)
-        {
-            // Add the order to the appropriate priority queue
-            var orderCollection = await dataStore.OrderStore.GetOrderCollectionBySymbol(stockSymbol);
-            if (orderCollection == null)
-            {
-                orderCollection = new Dictionary<OrderType, PriorityQueue<Order, int>>
-                {
-                    [OrderType.Buy] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) =>
-                        o2.CompareTo(o1) != 0 ? o2.CompareTo(o1) : o1)),
-                    [OrderType.Sell] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) =>
-                        o1.CompareTo(o2) != 0 ? o1.CompareTo(o2) : o1))
-                };
-
-                await dataStore.OrderStore.AddOrderCollection(stockSymbol, orderCollection);
-            }
         }
 
         public async Task<bool> ModifyOrder(int orderId, int quantity, int price)
@@ -118,12 +102,16 @@ namespace TradingSystem.Processors
                         }
                     }
 
+                    Console.Write($"Order modified successfully: {order.OrderId}, status: {order.Status}, price: {order.Price}, quantity: {order.Quantity}, expiration time: {order.ExpiryTimestamp}.");
+
                     // Process the updated order
                     await RunInThreadPool(() => ExecuteTrades(order));
 
                     return true;
                 }
             }
+
+            Console.Write($"Failed to modify order with id: {orderId}");
 
             return false;
         }
@@ -160,10 +148,12 @@ namespace TradingSystem.Processors
                         dataStore.OrderBook[order.StockSymbol].Remove(order);
                     }
 
+                    Console.Write($"Canceled order with id: {orderId}");
                     return true;
                 }
             }
 
+            Console.Write($"Failed to cancel order with id: {orderId}");
             return false;
         }
 
@@ -203,6 +193,8 @@ namespace TradingSystem.Processors
                         buyQueue.Dequeue();
                         buyOrder.Status = OrderStatus.Expired;
                         dataStore.OrderBook[buyOrder.StockSymbol].Remove(buyOrder);
+
+                        Console.Write($"Order expired: id: {buyOrder.OrderId}");
                     }
 
                     if (sellOrder.ExpiryTimestamp <= DateTime.UtcNow)
@@ -210,6 +202,8 @@ namespace TradingSystem.Processors
                         sellQueue.Dequeue();
                         sellOrder.Status = OrderStatus.Expired;
                         dataStore.OrderBook[sellOrder.StockSymbol].Remove(sellOrder);
+
+                        Console.Write($"Order expired: id: {sellOrder.OrderId}");
                     }
 
                     continue;
@@ -237,7 +231,6 @@ namespace TradingSystem.Processors
                 }
             }
         }
-
 
         public async Task MonitorExpiredOrders(CancellationToken cancellationToken)
         {
@@ -269,6 +262,8 @@ namespace TradingSystem.Processors
                                     // Expire the order
                                     order.Status = OrderStatus.Expired;
                                     dataStore.OrderBook[order.StockSymbol].Remove(order);
+
+                                    Console.Write($"Order expired: id: {order.OrderId}");
                                 }
                             }
 
@@ -279,6 +274,24 @@ namespace TradingSystem.Processors
 
                 // Sleep for a configurable duration before the next expiry check
                 await Task.Delay(TimeSpan.FromSeconds(config.ExpiryCheckIntervalSeconds), cancellationToken);
+            }
+        }
+
+        private async Task UpdateOrderCollection(string stockSymbol)
+        {
+            // Add the order to the appropriate priority queue
+            var orderCollection = await dataStore.OrderStore.GetOrderCollectionBySymbol(stockSymbol);
+            if (orderCollection == null)
+            {
+                orderCollection = new Dictionary<OrderType, PriorityQueue<Order, int>>
+                {
+                    [OrderType.Buy] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) =>
+                        o2.CompareTo(o1) != 0 ? o2.CompareTo(o1) : o1)),
+                    [OrderType.Sell] = new PriorityQueue<Order, int>(Comparer<int>.Create((o1, o2) =>
+                        o1.CompareTo(o2) != 0 ? o1.CompareTo(o2) : o1))
+                };
+
+                await dataStore.OrderStore.AddOrderCollection(stockSymbol, orderCollection);
             }
         }
 
@@ -321,6 +334,8 @@ namespace TradingSystem.Processors
                     sellOrder.Status = OrderStatus.Completed;
                 }
             }
+
+            Console.Write($"Trade executed: id: {trade.TradeId}, BuyerOrderId: {trade.BuyerOrderId}, SellerOrderId: {trade.SellerOrderId}, StockSymbol: {trade.StockSymbol}, Quantity: {trade.Quantity}, Price: {trade.Price}, time: {trade.TradeTimestamp}");
         }
 
         private async Task RunInThreadPool(Func<Task> action)
