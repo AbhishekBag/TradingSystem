@@ -84,8 +84,16 @@ namespace Svc.TradingService.Controllers
                 return NotFound();
             }
 
-            var order = await _tradeActions.QueryOrderAsync(orderId);
-            return Ok(order);
+            try
+            {
+                var order = await _tradeActions.QueryOrderAsync(orderId);
+                return Ok(order);
+            }
+            catch (Exception ex)
+            {
+                return NotFound();
+
+            }
         }
 
         [ProducesResponseType(200)]
